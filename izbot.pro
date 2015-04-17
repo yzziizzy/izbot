@@ -33,7 +33,7 @@ read_line(Str, [C|Cl]) :-
 	
 
 irc_recv(Line) :-
-	sock(R, _),  /
+	sock(R, _),  
 	read_line_to_codes(R, Line),
 	!,Line \= end_of_file. 
 	/* read_line(R, Line). */
@@ -66,6 +66,15 @@ putstring(Stream, [A | Rest]) :-
 	put(Stream, A), putstring(Stream, Rest).
 
 
+putstringRaw(Stream, []) :- nl(Stream).
+putstringRaw(Stream, [A | Rest]) :- 
+	atom(A),
+	write(Stream, A),
+	putstringRaw(Stream, Rest).
+
+putstringRaw(Stream, [A | Rest]) :- 
+	not(atom(A)),
+	put(Stream, A), putstringRaw(Stream, Rest).
 
 
 
@@ -75,7 +84,11 @@ irc_send(Msg) :-
 	putstring(W, Msg),
 	flush_output(W). 
 
-
+irc_sendRaw(Msg) :-
+	sock(_, W),
+	putstringRaw(W, Msg),
+	flush_output(W). 
+	
 irc_nick(Nick) :-
 	append("NICK ", Nick, S),
 	irc_send(S).
@@ -111,6 +124,16 @@ irc_privmsg(To, Msg) :-
 	flatten(Msg, M),
 	append(Y, M, Z),
 	irc_send(Z), !.
+	
+irc_privmsgRaw(To, Msg) :-
+	atom_codes(To, T),
+	append("PRIVMSG ", T, X),
+	append(X, " ", Y),
+	flatten(Msg, M),
+	write(M),nl,
+	append(Y, M, Z),
+	write(Z),nl,
+	irc_sendRaw(Z), !.
 	
 irc_notice(To, Msg) :-
 	atom_codes(To, T),
@@ -262,10 +285,12 @@ irc_input(['Izzy'|_], 'PRIVMSG', _, ['izbot','kick', Nick, 'because' |Reason]) :
 	atomic_list_concat(Reason, ' ', X),
 	irc_kick(Nick, '#ministryofsillywalks', X), !.
 
+/*
 irc_input(['Mal'|_], 'PRIVMSG', _, ['izbot','kick', Nick, 'because' |Reason]) :-
 	write('kick'),
 	atomic_list_concat(Reason, ' ', X),
 	irc_kick(Nick, '#ministryofsillywalks', X), !.
+*/
 
 	
 irc_input([Nick|_], 'PRIVMSG', _, Text) :- fail,
@@ -288,7 +313,7 @@ irc_input1([Nick|_], 'PRIVMSG', _, ['postfix'|Text]) :-
 	number(R1),
 	atom_number(Result, R1),
 	write(['result: ',Result]),nl,
-	irc_privmsg('#ministryofsillywalks', ['postfix =', Result]), 
+	irc_privmsgRaw('#ministryofsillywalks', [Nick, ', ', Result]), 
 	write('done'),nl,!.
 
 
@@ -353,7 +378,7 @@ postfixer(['^'|T], R, [A, B|S]) :-
 	
 postfixer(['mod'|T], R, [A, B|S]) :-
 	write('mod'),
-	R1 is A mod B,
+	R1 is B mod A,
 	postfixer(T, R, [R1|S]). 
 	
 postfixer(['ln'|T], R, [A|S]) :-
@@ -401,6 +426,13 @@ irc_input1(_, 'NOTICE', [To], Msg) :-
 irc_input1(['Izzy',_,_], 'NOTICE', [To], Msg) :-
 	To = 'Izbot-0001',
 	prefix(['go', 'away','password'], Msg),
+	irc_privmsg('#ministryofsillywalks', ['goodbye, ','everyone.']),
+	irc_quit,
+	retract(app_running(true)),!, fail.
+	
+irc_input1(['Izzy',_,_], _, _, Msg) :-
+	prefix(['izbot', 'get', 'lost'], Msg);
+	prefix(['get', 'lost', 'izbot'], Msg),
 	irc_privmsg('#ministryofsillywalks', ['goodbye, ','everyone.']),
 	irc_quit,
 	retract(app_running(true)),!, fail.
