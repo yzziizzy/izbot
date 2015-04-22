@@ -3,7 +3,7 @@
 
 :- dynamic  irc_input1/4.
 
-
+?- consult('config.pro').
 
 ?- consult('bot.pro').
 ?- consult('bothelp.pro').
@@ -135,6 +135,8 @@ irc_privmsgRaw(To, Msg) :-
 	write(Z),nl,
 	irc_sendRaw(Z), !.
 	
+
+	
 irc_notice(To, Msg) :-
 	atom_codes(To, T),
 	append("NOTICE ", T, X),
@@ -203,9 +205,12 @@ irc_bot :-
 	write(starting),nl,
 	asserta(app_running(true)),
 	assertz(kudos(_, 0)),
-	irc_connect('irc.foonetic.net', 6667),
-	irc_nick("Izbot-0001"),
-	irc_user("Izbot-0001", "0", "Izzy"),
+	config_host(Host, Port),
+	config_owner(Owner),
+	config_botname(Name),
+	irc_connect(Host, Port),
+	irc_nick(Name),
+	irc_user(Name, "0", Owner),
 /*	write(sleeping),nl,
 	sleep(2),
 	write(awake),nl,*/
@@ -246,7 +251,8 @@ irc_input(_, 'NOTICE', ['Izbot-0001'], ['kudos?', Nick|_]) :- !,
 	append(K, " currently has ", A),
 	append(A, N, B),
 	append(B, " Kudos.", C),
-	irc_privmsg('#ministryofsillywalks', C),
+	config_channel(Channel),
+	irc_privmsg(Channel, C),
 	write('--notice-- kudos? : '), write(Nick), nl,
 	!.
 
@@ -259,7 +265,8 @@ irc_input(_, 'NOTICE', ['Izbot-0001'], ['kudos', Num, Nick | Reason]) :-
 	append(K, " was given ", A),
 	append(A, N, B),
 	append(B, " Kudos.", C),
-	irc_privmsg('#ministryofsillywalks', C), 
+	config_channel(Channel),
+	irc_privmsg(Channel, C),
 	write('--notice-- kudos given'), nl,
 	!.
 	
@@ -269,7 +276,8 @@ irc_input(_, 'NOTICE', ['Izbot-0001'], ['kudos', Num, Nick | Reason]) :-
 	append(N, " is a rediculous number of Kudos to give ", A),
 	append(A, K, B),
 	append(B, ".", C),
-	irc_privmsg('#ministryofsillywalks', C),
+	config_channel(Channel),
+	irc_privmsg(Channel, C),
 	write('--notice-- kudos give fail'), nl,
 	!.
 
@@ -283,7 +291,8 @@ irc_input([From,_,_], 'PRIVMSG', _, ['izbot', 'help'|_]) :-
 irc_input(['Izzy'|_], 'PRIVMSG', _, ['izbot','kick', Nick, 'because' |Reason]) :-
 	write('kick'),
 	atomic_list_concat(Reason, ' ', X),
-	irc_kick(Nick, '#ministryofsillywalks', X), !.
+	config_channel(Channel),
+	irc_kick(Nick, Channel, X), !.
 
 /*
 irc_input(['Mal'|_], 'PRIVMSG', _, ['izbot','kick', Nick, 'because' |Reason]) :-
@@ -297,7 +306,8 @@ irc_input([Nick|_], 'PRIVMSG', _, Text) :- fail,
 	atom_codes(X, "-_-"),
 	member(X, Text),
 	write('-- -- kick --'),
-	irc_kick(Nick, '#ministryofsillywalks', 'That is a lame smiley. Do not use it.'), !.
+	config_channel(Channel),
+	irc_kick(Nick, Channel, 'That is a lame smiley. Do not use it.'), !.
 
 
 	
@@ -313,7 +323,8 @@ irc_input1([Nick|_], 'PRIVMSG', _, ['postfix'|Text]) :-
 	number(R1),
 	atom_number(Result, R1),
 	write(['result: ',Result]),nl,
-	irc_privmsgRaw('#ministryofsillywalks', [Nick, ', ', Result]), 
+	config_channel(Channel),
+	irc_privmsgRaw(Channel, [Nick, ', ', Result]), 
 	write('done'),nl,!.
 
 
@@ -339,7 +350,7 @@ postfilter(['ln'|T], ['ln'|U]) :- postfilter(T, U).
 postfilter(['e'|T], [2.718281828|U]) :- postfilter(T, U).
 postfilter(['pi'|T], [3.141592653589793238462|U]) :- postfilter(T, U).
 postfilter([H|T], [O|U]) :-   atom_codes(H, C), re_postfilter_num(X, C, Rest),!, Rest = [], number_codes(O, X), postfilter(T, U). % number(H), term_to_atom(O, H), postfilter(T, U).
-postfilter([W|T], U) :- write('bad postfix'),nl,irc_privmsg('#ministryofsillywalks', ['wtf is ', W]), postfilter(T, U).
+postfilter([W|T], U) :- write('bad postfix'),nl,config_channel(Channel),irc_privmsg(Channel, ['wtf is ', W]), postfilter(T, U).
 postfilter([], []).
 	
 	
@@ -363,8 +374,9 @@ postfixer(['/'|T], R, [A, B|S]) :-
 postfixer(['/'|T], R, [A, B|S]) :-
 	write('-00/-kick-'),nl, 
 	postfix_lastnick(Nick),write(Nick),
-    irc_privmsg('#ministryofsillywalks', ['postfix = fuck you']), 
-	irc_kick(Nick, '#ministryofsillywalks', 'Nice try; you fail').
+	config_channel(Channel),
+    irc_privmsg(Channel, ['postfix = fuck you']), 
+	irc_kick(Nick, Channel, 'Nice try; you fail').
 	
 postfixer(['-'|T], R, [A, B|S]) :-
 	write('-'),
@@ -426,14 +438,16 @@ irc_input1(_, 'NOTICE', [To], Msg) :-
 irc_input1(['Izzy',_,_], 'NOTICE', [To], Msg) :-
 	To = 'Izbot-0001',
 	prefix(['go', 'away','password'], Msg),
-	irc_privmsg('#ministryofsillywalks', ['goodbye, ','everyone.']),
+	config_channel(Channel),
+	irc_privmsg(Channel, ['goodbye, ','everyone.']),
 	irc_quit,
 	retract(app_running(true)),!, fail.
 	
 irc_input1(['Izzy',_,_], _, _, Msg) :-
 	prefix(['izbot', 'get', 'lost'], Msg);
 	prefix(['get', 'lost', 'izbot'], Msg),
-	irc_privmsg('#ministryofsillywalks', ['goodbye, ','everyone.']),
+	config_channel(Channel),
+	irc_privmsg(Channel, ['goodbye, ','everyone.']),
 	irc_quit,
 	retract(app_running(true)),!, fail.
 	
@@ -442,12 +456,13 @@ irc_input1(_, 'NOTICE' , [To], Msg) :-
 	prefix(['say'], Msg),
 	Msg = [_|X],
 	write('--notice-- say '), nl,
-	irc_privmsg('#ministryofsillywalks', X),
+	config_channel(Channel),
+	irc_privmsg(Channel, X),
 	!,fail.
 
 /*:staticfree.foonetic.net 001 Izbot-0001 :Welcome to the Foonetic IRC Network Izbot-0001!Izbot-0001@hostname.com*/
 	
-/* :daemonic.foonetic.net 353 Izbot-0001 = #ministryofsillywalks :Izbot-0001 &mo +Krisx &Liberum_Vir &Izzy */
+/* :daemonic.foonetic.net 353 Izbot-0001 = #channelname :Izbot-0001 &mo +Krisx &Liberum_Vir &Izzy */
 /*
 irc_input('353', [Me, _, Channel, _ |Names) :-
 	map_list(add_nick(), 
@@ -461,12 +476,14 @@ add_nick(Nick) :-
 
 irc_input(_, 1, _, _) :- 	
 	write(' -- joi'),
-	irc_join("#ministryofsillywalks"),
+	config_channel(Channel),
+	irc_join(Channel),
 	write('ned -1-'),!.
 
 irc_input(_, '001', _, _) :- 
 	write(' -- joi'),
-	irc_join("#ministryofsillywalks"),
+	config_channel(Channel),
+	irc_join(Channel),
 	write('ned -2-'),!.
 
 
